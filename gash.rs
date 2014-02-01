@@ -41,6 +41,7 @@ impl Shell {
             match program {
                 ""      =>  { continue; }
                 "exit"  =>  { return; }
+		"cd"	=>  { self.run_cd(cmd_line); }
                 _       =>  { self.run_cmdline(cmd_line); }
             }
         }
@@ -62,6 +63,17 @@ impl Shell {
         } else {
             println!("{:s}: command not found", program);
         }
+    }
+
+    fn run_cd(&mut self, program: &str) {
+        let mut argv: ~[~str] =
+            program.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+    
+	let mut programs : ~str = ~"";
+        if argv.len() > 0 {
+            programs = argv.remove(1);
+        }
+	os::change_dir(&Path::new(programs.clone()));
     }
     
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
