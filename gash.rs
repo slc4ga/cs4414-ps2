@@ -40,6 +40,10 @@ impl Shell {
             let cmd_line = line.trim().to_owned();
             let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
             self.history.push(cmd_line.clone());
+            match program.slice_from(program.len() - 2) {
+                " &"    => { self.run_background(program, cmd_line); }
+                _       => { continue; }
+            }
             match program {
                 ""           =>  { continue; }
                 "exit"       =>  { return; }
@@ -83,6 +87,18 @@ impl Shell {
         for c in range(0, self.history.len()) {
             println!("{:s}", self.history[c]);
         }
+    }
+
+    fn run_background(&mut self, program: &str, cmd_line: &str) {
+            spawn(proc() { 
+                match program {
+                    ""           =>  { }
+                    "exit"       =>  { return; }
+                    "cd"         =>  { self.run_cd(cmd_line); }
+                    "history"    =>  { self.run_history(); }
+                    _            =>  { self.run_cmdline(cmd_line); }
+                }
+            });
     }
     
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
