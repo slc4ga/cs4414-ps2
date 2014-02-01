@@ -40,16 +40,17 @@ impl Shell {
             let cmd_line = line.trim().to_owned();
             let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
             self.history.push(cmd_line.clone());
-            match program.slice_from(program.len() - 2) {
-                " &"    => { self.run_background(program, cmd_line); }
-                _       => { continue; }
+            match cmd_line.slice_from(cmd_line.len() - 2) {
+                " &"    => { self.run_background(program, cmd_line);
+				continue; }
+                _       => { }
             }
             match program {
-                ""           =>  { continue; }
-                "exit"       =>  { return; }
-		        "cd"	     =>  { self.run_cd(cmd_line); }
-                "history"    =>  { self.run_history(); }
-                _            =>  { self.run_cmdline(cmd_line); }
+		""           =>  { continue; }
+		"exit"       =>  { return; }
+		"cd"	     =>  { self.run_cd(cmd_line); }
+		"history"    =>  { self.run_history(); }
+		_            =>  { self.run_cmdline(cmd_line); }
             }
         }
     }
@@ -90,15 +91,25 @@ impl Shell {
     }
 
     fn run_background(&mut self, program: &str, cmd_line: &str) {
-            spawn(proc() { 
+		let (portSelf, chanSelf): (Port<~Shell>, Chan<~Shell>) = Chan::new();
+		let (portProg, chanProg): (Port<~str>, Chan<~str>) = Chan::new();
+		let (portLine, chanLine): (Port<~str>, Chan<~str>) = Chan::new();
+		
+		chanSelf.send(~(Shell::new("gash > ")));
+		chanProg.send(program.to_owned());
+		chanLine.send(cmd_line.to_owned());
+            do spawn { 
+		let program : ~str = portProg.recv();
+		let cmd_line : ~str = portLine.recv();
+		let mut selfV : ~Shell = portSelf.recv();
                 match program {
-                    ""           =>  { }
-                    "exit"       =>  { return; }
-                    "cd"         =>  { self.run_cd(cmd_line); }
-                    "history"    =>  { self.run_history(); }
-                    _            =>  { self.run_cmdline(cmd_line); }
+             	   ~""           =>  { }
+              	  ~"exit"       =>  { }
+		  ~"cd"	     =>  { selfV.run_cd(cmd_line); }
+                  ~"history"    =>  { selfV.run_history(); }
+                  _            =>  { selfV.run_cmdline(cmd_line); }
                 }
-            });
+            };
     }
     
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
