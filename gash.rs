@@ -14,6 +14,7 @@ extern mod extra;
 use std::{io, run, os};
 use std::io::buffered::BufferedReader;
 use std::io::stdin;
+use std::io::fs::File;
 use extra::getopts;
 
 struct Shell {
@@ -38,19 +39,61 @@ impl Shell {
             
             let line = stdin.read_line().unwrap();
             let cmd_line = line.trim().to_owned();
-            let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
-            self.history.push(cmd_line.clone());
-            match cmd_line.slice_from(cmd_line.len() - 2) {
-                " &"    => { self.run_background(program, cmd_line);
-				continue; }
-                _       => { }
+            let writeRedirect = cmd_line.find_str(" > ");
+            let readRedirect = cmd_line.find_str(" < ");
+            if(writeRedirect == None && readRedirect == None) {
+            	let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
+            	self.history.push(cmd_line.clone());
+            	match cmd_line.slice_from(cmd_line.len() - 2) {
+            		" &"    => { self.run_background(program, cmd_line);
+            			continue; }
+                	_	=> { }
+            	}
+            	match program {
+			""           =>  { continue; }
+			"exit"       =>  { return; }
+			"cd"	     =>  { self.run_cd(cmd_line); }
+			"history"    =>  { self.run_history(); }
+			_            =>  { self.run_cmdline(cmd_line); }
+            	}
             }
-            match program {
-		""           =>  { continue; }
-		"exit"       =>  { return; }
-		"cd"	     =>  { self.run_cd(cmd_line); }
-		"history"    =>  { self.run_history(); }
-		_            =>  { self.run_cmdline(cmd_line); }
+            else if (readRedirect == None) {
+            	let cmd1 = cmd_line.slice(0, writeRedirect.unwrap());
+            	let cmd2 = cmd_line.slice_from(writeRedirect.unwrap()+3);
+            	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
+            	let args : ~[&str] = cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect();
+            	let mut argsOwned : ~[~str] = ~[];
+            	for i in range (0, args.len()) {
+            		argsOwned.push(args[i].to_owned());
+            	}
+		let newStdOut = File::create(&Path::new(cmd2));
+            	match newStdOut {
+            		Some(mut x) => {
+            			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
+            			let output = process.unwrap().finish_with_output();
+            			x.write(output.output);
+            		}
+            		None => { println("shouldnt be here");}
+            	}
+            }
+            else if (writeRedirect == None) {
+            	let cmd1 = cmd_line.slice(0, readRedirect.unwrap());
+            	let cmd2 = cmd_line.slice_from(readRedirect.unwrap()+3);
+            	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
+            	let args : ~[&str] = cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect();
+            	let mut argsOwned : ~[~str] = ~[];
+            	for i in range (0, args.len()) {
+            		argsOwned.push(args[i].to_owned());
+            	}
+		let input = File::create(&Path::new(cmd2));
+            	match input {
+            		Some(mut x) => {
+            			let inputBytes = x.read_to_end();
+            			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
+            			process.unwrap().input().write(inputBytes);
+            		}
+            		None => { println!("gash: {:s}: No such file or directory", cmd2);}
+            	}
             }
         }
     }
