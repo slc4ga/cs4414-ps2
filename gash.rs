@@ -11,7 +11,7 @@
 
 extern mod extra;
 
-use std::{io, run, os};
+use std::{io, run, os, str};
 use std::io::buffered::BufferedReader;
 use std::io::stdin;
 use std::io::fs::File;
@@ -61,7 +61,7 @@ impl Shell {
             	let cmd1 = cmd_line.slice(0, writeRedirect.unwrap());
             	let cmd2 = cmd_line.slice_from(writeRedirect.unwrap()+3);
             	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
-            	let args : ~[&str] = cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect();
+            	let args : ~[&str] = if (cmd1.splitn(' ', 1).nth(1) != None) {cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect()} else {~[]};
             	let mut argsOwned : ~[~str] = ~[];
             	for i in range (0, args.len()) {
             		argsOwned.push(args[i].to_owned());
@@ -80,17 +80,24 @@ impl Shell {
             	let cmd1 = cmd_line.slice(0, readRedirect.unwrap());
             	let cmd2 = cmd_line.slice_from(readRedirect.unwrap()+3);
             	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
-            	let args : ~[&str] = cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect();
+            	let args : ~[&str] = if (cmd1.splitn(' ', 1).nth(1) != None) {cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect()} else {~[]};
             	let mut argsOwned : ~[~str] = ~[];
             	for i in range (0, args.len()) {
             		argsOwned.push(args[i].to_owned());
             	}
-		let input = File::create(&Path::new(cmd2));
+		let input = File::open(&Path::new(cmd2));
             	match input {
             		Some(mut x) => {
             			let inputBytes = x.read_to_end();
             			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
-            			process.unwrap().input().write(inputBytes);
+            			match(process) {
+            				Some(mut toWrite) => {
+            					toWrite.input().write(inputBytes);
+            					let output = toWrite.finish_with_output();
+            					print!("{:s}", str::from_utf8(output.output));
+            				}
+            				None => {}
+        			}
             		}
             		None => { println!("gash: {:s}: No such file or directory", cmd2);}
             	}
