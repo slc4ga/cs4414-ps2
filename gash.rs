@@ -11,6 +11,7 @@
 
 extern mod extra;
 
+use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str};
 use std::io::buffered::BufferedReader;
@@ -209,10 +210,16 @@ fn main() {
     let mut listener = Listener::new();
     listener.register(Interrupt);
 
+    let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
+    chanSelf.send(listener);
+
     do spawn{
         loop {
+            let listener = portSelf.recv();
             match listener.port.recv() {
-                Interrupt => println!("Got Interrupt'ed"),
+                Interrupt => { println!("Got Interrupt'ed");
+                                unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
+                            }
                 _ => (),
             }
         }
