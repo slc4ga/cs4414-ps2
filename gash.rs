@@ -13,16 +13,15 @@ extern mod extra;
 
 use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
-use std::{io, run, os, str};
+use std::{io, run, os, str, vec, clone};
 use std::io::buffered::BufferedReader;
 use std::io::stdin;
 use std::io::fs::File;
 use extra::getopts;
 
-
 struct Shell {
-    cmd_prompt: ~str,
-    history: ~[~str],
+	cmd_prompt: ~str,
+	history: ~[~str],
 }
 
 impl Shell {
@@ -113,6 +112,45 @@ impl Shell {
             }
         }
     }
+
+	fn decompose_Cmdline (cmd_line: &str) -> ~[DecomposedCmd]{
+		let mut decomposed = ~[];
+
+		let pipe = cmd_line.find_str("|");
+		match pipe {
+			Some(index)	=> {
+				let cmd1 = cmd_line.slice(0, index);
+				let cmd2 = cmd_line.slice_from(index+1);
+				decomposed = Shell::decompose_Cmdline(cmd1);
+				decomposed = vec::append(decomposed, Shell::decompose_Cmdline(cmd2));
+				return decomposed;
+			}
+			_		=> {
+			}
+		}
+		
+		let decomposedCmd = DecomposedCmd {
+			cmd_line: ~"",
+			program: ~"",
+			args: ~[],
+			background: false,
+			inputFile: None,
+			outputFile: None,
+			pipeToNext: false,
+		};
+
+
+		let writeRedirect = cmd_line.find_str(">");
+		let readRedirect = cmd_line.find_str("<");
+		match (readRedirect, writeRedirect) {
+			(Some(read), Some(write))	=> {}
+			(Some(read), _)			=> {}
+			(_, Some(write))		=> {}
+			(_, _)				=> {}
+		}
+
+		decomposed
+	}
     
     fn run_cmdline(&mut self, cmd_line: &str) {
         let mut argv: ~[~str] =
@@ -229,4 +267,28 @@ fn main() {
         Some(cmd_line) => Shell::new("").run_cmdline(cmd_line),
         None           => Shell::new("gash > ").run()
     }
+}
+
+struct DecomposedCmd {
+	cmd_line: ~str,
+	program: ~str,
+	args: ~[~str],
+	background: bool,
+	inputFile: Option<~str>,
+	outputFile: Option<~str>,
+	pipeToNext: bool,
+}
+
+impl clone::Clone for DecomposedCmd {
+	fn clone(&self) -> DecomposedCmd {
+		DecomposedCmd {
+			cmd_line: self.cmd_line.clone(),
+			program: self.program.clone(),
+			args: self.args.clone(),
+			background : self.background,
+			inputFile: self.inputFile.clone(),
+			outputFile: self.outputFile.clone(),
+			pipeToNext: self.pipeToNext,
+		}
+	}
 }
