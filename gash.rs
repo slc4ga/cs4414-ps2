@@ -151,10 +151,13 @@ impl Shell {
 		let (portProg, chanProg): (Port<~str>, Chan<~str>) = Chan::new();
 		let (portLine, chanLine): (Port<~str>, Chan<~str>) = Chan::new();
 		
-		chanSelf.send(~(Shell::new("gash > ")));
+		let mut sendShell = ~(Shell::new("gash > "));
+		sendShell.history = self.history.clone();
+		chanSelf.send(sendShell);
 		chanProg.send(program.to_owned());
 		chanLine.send(cmd_line.to_owned());
-            do spawn { 
+
+		do spawn { 
 		let program : ~str = portProg.recv();
 		let cmd_line : ~str = portLine.recv();
 		let mut selfV : ~Shell = portSelf.recv();
