@@ -85,22 +85,28 @@ impl Shell {
             	for i in range (0, args.len()) {
             		argsOwned.push(args[i].to_owned());
             	}
-		let input = File::open(&Path::new(cmd2));
-            	match input {
-            		Some(mut x) => {
-            			let inputBytes = x.read_to_end();
-            			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
-            			match(process) {
-            				Some(mut toWrite) => {
-            					toWrite.input().write(inputBytes);
-            					let output = toWrite.finish_with_output();
-            					print!("{:s}", str::from_utf8(output.output));
-            				}
-            				None => {}
-        			}
+           	let path = &Path::new(cmd2);
+            	if (path.exists()) {
+		let input = File::open(path);
+            		match input {
+            			Some(mut x) => {
+            				let inputBytes = x.read_to_end();
+            				let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
+            				match(process) {
+            					Some(mut toWrite) => {
+            						toWrite.input().write(inputBytes);
+            						let output = toWrite.finish_with_output();
+            						print!("{:s}", str::from_utf8(output.output));
+            					}
+            					None => {}
+        				}
+            			}
+            			None => { println!("gash: {:s}: No such file or directory", cmd2);}
             		}
-            		None => { println!("gash: {:s}: No such file or directory", cmd2);}
             	}
+                else {
+           		println!("gash: {:s}: No such file or directory", cmd2);
+           	}
             }
         }
     }
