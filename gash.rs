@@ -137,7 +137,7 @@ impl Shell {
             program.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
     
     	let mut programs : ~str = ~"";
-            if argv.len() > 0 {
+            if argv.len() > 1 {
                 programs = argv.remove(1);
             }
     	os::change_dir(&Path::new(programs.clone()));
