@@ -11,11 +11,13 @@
 
 extern mod extra;
 
+use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str};
 use std::io::buffered::BufferedReader;
 use std::io::stdin;
 use std::io::fs::File;
 use extra::getopts;
+
 
 struct Shell {
     cmd_prompt: ~str,
@@ -41,7 +43,9 @@ impl Shell {
             let cmd_line = line.trim().to_owned();
             let writeRedirect = cmd_line.find_str(" > ");
             let readRedirect = cmd_line.find_str(" < ");
-            if(writeRedirect == None && readRedirect == None) {
+            let cdFound = cmd_line.find_str("cd ");
+            println(cdFound);
+            if(writeRedirect == None && readRedirect == None && cdFound != None) {
             	let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
             	self.history.push(cmd_line.clone());
             	match cmd_line.slice_from(cmd_line.len() - 2) {
@@ -203,6 +207,18 @@ fn get_cmdline_from_args() -> Option<~str> {
 
 fn main() {
     let opt_cmd_line = get_cmdline_from_args();
+
+    let mut listener = Listener::new();
+    listener.register(Interrupt);
+
+    do spawn{
+        loop {
+            match listener.port.recv() {
+                Interrupt => println!("Got Interrupt'ed"),
+                _ => (),
+            }
+        }
+    };
     
     match opt_cmd_line {
         Some(cmd_line) => Shell::new("").run_cmdline(cmd_line),
