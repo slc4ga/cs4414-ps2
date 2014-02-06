@@ -11,6 +11,7 @@
 
 extern mod extra;
 
+use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str};
 use std::io::buffered::BufferedReader;
@@ -43,9 +44,7 @@ impl Shell {
             let cmd_line = line.trim().to_owned();
             let writeRedirect = cmd_line.find_str(" > ");
             let readRedirect = cmd_line.find_str(" < ");
-            let cdFound = cmd_line.find_str("cd ");
-            println(cdFound);
-            if(writeRedirect == None && readRedirect == None && cdFound != None) {
+            if(writeRedirect == None && readRedirect == None) {
             	let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
             	self.history.push(cmd_line.clone());
             	match cmd_line.slice_from(cmd_line.len() - 2) {
@@ -211,10 +210,16 @@ fn main() {
     let mut listener = Listener::new();
     listener.register(Interrupt);
 
+    let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
+    chanSelf.send(listener);
+
     do spawn{
         loop {
+            let listener = portSelf.recv();
             match listener.port.recv() {
-                Interrupt => println!("Got Interrupt'ed"),
+                Interrupt => { println!("Got Interrupt'ed");
+                                unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
+                            }
                 _ => (),
             }
         }
