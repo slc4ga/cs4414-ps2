@@ -37,7 +37,10 @@ impl Shell {
         let mut stdin = BufferedReader::new(stdin());
         
         loop {
-            print(self.cmd_prompt);
+            let cwd = std::os::getcwd();
+            let cwd2 = format!("{}", cwd.display());
+            let mut cwdS : ~[&str] = cwd2.split('/').collect();
+            print!("{} : {}", cwdS.pop(), self.cmd_prompt);
             io::stdio::flush();
             
             let line = stdin.read_line().unwrap();
@@ -217,8 +220,7 @@ fn main() {
         loop {
             let listener = portSelf.recv();
             match listener.port.recv() {
-                Interrupt => { println!("Got Interrupt'ed");
-                                unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
+                Interrupt => { unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
                             }
                 _ => (),
             }
