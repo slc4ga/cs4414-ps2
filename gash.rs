@@ -41,10 +41,18 @@ impl Shell {
             
             let line = stdin.read_line().unwrap();
             let cmd_line = line.trim().to_owned();
-		let decomposed = Shell::decompose_Cmdline(cmd_line);
+            if (cmd_line == ~"") {continue;}
+            self.history.push(cmd_line.clone());
+            let decomposed = Shell::decompose_Cmdline(cmd_line);
+            let mut error : bool = false;
 		for j in range(0, decomposed.len()) {
-			decomposed[j].print();
+			if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
 		}
+		if error {continue;}
+		for j in range(0, decomposed.len()) {
+			self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
+		}
+/*
             let writeRedirect = cmd_line.find_str(" > ");
             let readRedirect = cmd_line.find_str(" < ");
             if(writeRedirect == None && readRedirect == None) {
@@ -114,8 +122,162 @@ impl Shell {
            		println!("gash: {:s}: No such file or directory", cmd2);
            	}
             }
+*/
         }
     }
+
+	fn checkForError(cmd : Option<~DecomposedCmd>) -> bool {
+		match cmd {
+			Some(comm) 	=> {
+				if comm.error {return true;}
+				else {return Shell::checkForError(comm.pipeToNext);}
+			}
+			None		=> {
+				return false;
+			}
+		}
+	}
+	
+	fn runDecomposed (&mut self, cmd : Option<~DecomposedCmd>, input : ~[u8]) {
+		match cmd {
+			Some(useCmd) => {
+			if useCmd.background {
+				let mut shellCopy = ~(Shell::new("gash > "));
+				shellCopy.history = self.history.clone();
+				let (portSelf, chanSelf): (Port<~Shell>, Chan<~Shell>) = Chan::new();
+		
+				chanSelf.send(shellCopy);
+				
+				do spawn { 
+					let mut output : ~[u8] = ~[];
+					let mut shellCopy : ~Shell = portSelf.recv();
+					match useCmd.program {
+						~""		=>  { }
+						~"exit"		=>  { }
+						~"cd"		=>  {
+							if(useCmd.args.len() == 1) {
+								os::change_dir(&Path::new(useCmd.args[0]));
+							}
+							else {
+								println("Usage: cd <directory>");
+							}
+						}
+						~"history"	=>  { shellCopy.run_history(); }
+						_		=>  { output = Shell::runDecomposedUnit(*useCmd, input); }
+                			}
+				
+					shellCopy.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
+				}
+			}
+			else {
+				let mut output : ~[u8] = ~[];
+				match  useCmd.program {
+					~""		=>  { }
+					~"exit"		=>  { return; }
+					~"cd"		=>  {
+						if(useCmd.args.len() == 1) {
+							os::change_dir(&Path::new(useCmd.args.clone()[0]));
+						}
+						else {
+							println("Usage: cd <directory>");
+						}
+					}
+					~"history"	=>  { self.run_history(); }
+					_		=>  { output = Shell::runDecomposedUnit(*useCmd.clone(), input); }
+				}
+				self.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
+			}
+			}
+			_	=> {}
+		}
+	}
+
+	fn runDecomposedUnit (cmd : DecomposedCmd, input : ~[u8]) -> ~[u8] {
+		match (cmd.inputFile.clone(), cmd.outputFile.clone()) {
+			(Some(input), Some(output))	=> {
+				let path = &Path::new(input.clone());
+				let mut newStdOut = File::create(&Path::new(output));
+				if (path.exists()) {
+					let inputFile = File::open(path);
+					match inputFile {
+						Some(mut x) => {
+							let inputBytes = x.read_to_end();
+							let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+							match(process) {
+								Some(mut toWrite) => {
+									toWrite.input().write(inputBytes);
+									let output = toWrite.finish_with_output();
+									newStdOut.unwrap().write(output.output);
+									return output.output;
+								}
+								None => {}
+							}
+						}
+						None => { println!("gash: {:s}: No such file or directory", input);}
+					}
+				}
+				else {
+					println!("gash: {:s}: No such file or directory", input);
+				}
+			}
+			(Some(input), _)		=> {
+				let path = &Path::new(input.clone());
+				if (path.exists()) {
+					let inputFile = File::open(path);
+					match inputFile {
+						Some(mut x) => {
+							let inputBytes = x.read_to_end();
+							let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+							match(process) {
+								Some(mut toWrite) => {
+									toWrite.input().write(inputBytes);
+									let output = toWrite.finish_with_output();
+									match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output.output));} _ => {}}
+									return output.output;
+								}
+								None => {}
+							}
+						}
+						None => { println!("gash: {:s}: No such file or directory", input);}
+					}
+				}
+				else {
+					println!("gash: {:s}: No such file or directory", input);
+				}
+			}
+			(_, Some(output))		=> {
+				let newStdOut = File::create(&Path::new(output));
+				match newStdOut {
+					Some(mut x) => {
+						let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+						match process {
+							Some(mut pros)	=> {
+								if(input != ~[]) { pros.input().write(input); }
+								let output = pros.finish_with_output();
+								x.write(output.output);
+								return output.output;
+							}
+							_		=> {}
+						}
+					}
+					None => { println("shouldnt be here");}
+				}
+			}
+			(_, _)				=> {
+				let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+				match process {
+					Some(mut pros)	=> {
+						if(input != ~[]) { pros.input().write(input); }
+						let output = pros.finish_with_output();
+						match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output.output));} _ => {}}
+						return output.output;
+					}
+					_		=> {}
+				}
+			}
+		}
+		~[]
+	}
 
 	fn decompose_Cmdline (cmd_line: &str) -> ~[DecomposedCmd]{
 		let mut decomposed = ~[];
@@ -133,6 +295,12 @@ impl Shell {
 		let background = cmd_line.find_str("&");
 		match background {
 			Some(index)	=> {
+				if(index==0) {
+					println("Syntax error near '&'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
 				let cmd1 = cmd_line.slice(0, index).trim();
 				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim()} else {""};
 				decomposed = Shell::decompose_Cmdline(cmd1);
@@ -169,6 +337,18 @@ impl Shell {
 		let readRedirect = cmd_line.find_str("<");
 		match (readRedirect, writeRedirect) {
 			(Some(read), Some(write))	=> {
+				if(write==0 || write == cmd_line.len()-1) {
+					println("Syntax error near '>'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+				if(read==0 || read == cmd_line.len()-1) {
+					println("Syntax error near '<'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
 				if(read>write) {
 					let cmd = cmd_line.slice(0, write).trim().to_owned();
 					let output = cmd_line.slice(write+1, read).trim().to_owned();
@@ -194,6 +374,12 @@ impl Shell {
 				}
 			}
 			(Some(read), _)			=> {
+				if(read==0 || read == cmd_line.len()-1) {
+					println("Syntax error near '<'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
 				let cmd = cmd_line.slice(0, read).trim().to_owned();
 				let input = cmd_line.slice_from(read+1).trim().to_owned();
 				decomposedCmd.inputFile = Some(input);
@@ -204,6 +390,12 @@ impl Shell {
 				decomposedCmd.args = args;
 			}
 			(_, Some(write))		=> {
+				if(write==0 || write == cmd_line.len()-1) {
+					println("Syntax error near '>'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
 				let cmd = cmd_line.slice(0, write).trim().to_owned();
 				let output = cmd_line.slice_from(write+1).trim().to_owned();
 				decomposedCmd.outputFile = Some(output);
@@ -384,7 +576,7 @@ impl DecomposedCmd {
 				println("Pipe to:");
 				next.print();
 			}
-			_ => {}
+			_ => {println("Pipe to: None");}
 		}
 	}
 }
