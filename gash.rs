@@ -51,7 +51,7 @@ impl Shell {
             	let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
             	self.history.push(cmd_line.clone());
             	match cmd_line.slice_from(cmd_line.len() - 2) {
-            		" &"    => { self.run_background(program, cmd_line);
+            		" &"    => { self.run_background(program, cmd_line.slice(0, cmd_line.len() - 2));
             			continue; }
                 	_	=> { }
             	}
@@ -140,7 +140,7 @@ impl Shell {
             program.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
     
     	let mut programs : ~str = ~"";
-            if argv.len() > 0 {
+            if argv.len() > 1 {
                 programs = argv.remove(1);
             }
     	os::change_dir(&Path::new(programs.clone()));
