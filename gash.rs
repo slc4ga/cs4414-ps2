@@ -40,7 +40,12 @@ impl Shell {
             let cwd = std::os::getcwd();
             let cwd2 = format!("{}", cwd.display());
             let mut cwdS : ~[&str] = cwd2.split('/').collect();
-            print!("{} : {}", cwdS.pop(), self.cmd_prompt);
+            let last = cwdS.pop();
+            if(last.len() > 0) {
+                print!("{} : {}", last, self.cmd_prompt);
+            } else {
+                print!("Home : {}", self.cmd_prompt);
+            }
             io::stdio::flush();
             
             let line = stdin.read_line().unwrap();
@@ -59,7 +64,7 @@ impl Shell {
 			""           =>  { continue; }
 			"exit"       =>  { return; }
 			"cd"	     =>  { self.run_cd(cmd_line); }
-			"history"    =>  { self.run_history(); }
+			"history"    =>  { self.run_history(cmd_line); }
 			_            =>  { self.run_cmdline(cmd_line); }
             	}
             }
@@ -72,7 +77,7 @@ impl Shell {
             	for i in range (0, args.len()) {
             		argsOwned.push(args[i].to_owned());
             	}
-		let newStdOut = File::create(&Path::new(cmd2));
+		      let newStdOut = File::create(&Path::new(cmd2));
             	match newStdOut {
             		Some(mut x) => {
             			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
@@ -146,7 +151,19 @@ impl Shell {
     	os::change_dir(&Path::new(programs.clone()));
     }
 
-    fn run_history(&mut self) {
+    fn run_history(&mut self, program: &str) {
+        let histArgs : ~[&str] = program.split(' ').collect();
+        if(histArgs.len() == 2) {
+            if(from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
+                let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
+                println!("command to run: {:s}", self.history[num]);
+                let cmd = self.history[num].to_owned();
+                self.history.push(cmd);
+                // run self.history[num] exactly as printed
+            } else {
+                println("You haven't entered that many commands yet - try a smaller number");
+            }
+        }
         for c in range(0, self.history.len()) {
             println!("{:s}", self.history[c]);
         }
@@ -171,7 +188,7 @@ impl Shell {
              	   ~""           =>  { }
               	  ~"exit"       =>  { }
 		  ~"cd"	     =>  { selfV.run_cd(cmd_line); }
-                  ~"history"    =>  { selfV.run_history(); }
+                  ~"history"    =>  { selfV.run_history(cmd_line); }
                   _            =>  { selfV.run_cmdline(cmd_line); }
                 }
             };
@@ -213,7 +230,7 @@ fn main() {
     let mut listener = Listener::new();
     listener.register(Interrupt);
 
-    let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
+    /*let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
     chanSelf.send(listener);
 
     do spawn{
@@ -225,7 +242,7 @@ fn main() {
                 _ => (),
             }
         }
-    };
+    };*/
     
     match opt_cmd_line {
         Some(cmd_line) => Shell::new("").run_cmdline(cmd_line),
