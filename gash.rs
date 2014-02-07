@@ -41,6 +41,10 @@ impl Shell {
             
             let line = stdin.read_line().unwrap();
             let cmd_line = line.trim().to_owned();
+		let decomposed = Shell::decompose_Cmdline(cmd_line);
+		for j in range(0, decomposed.len()) {
+			decomposed[j].print();
+		}
             let writeRedirect = cmd_line.find_str(" > ");
             let readRedirect = cmd_line.find_str(" < ");
             if(writeRedirect == None && readRedirect == None) {
@@ -115,41 +119,111 @@ impl Shell {
 
 	fn decompose_Cmdline (cmd_line: &str) -> ~[DecomposedCmd]{
 		let mut decomposed = ~[];
-
-		let pipe = cmd_line.find_str("|");
-		match pipe {
-			Some(index)	=> {
-				let cmd1 = cmd_line.slice(0, index);
-				let cmd2 = cmd_line.slice_from(index+1);
-				decomposed = Shell::decompose_Cmdline(cmd1);
-				decomposed = vec::append(decomposed, Shell::decompose_Cmdline(cmd2));
-				return decomposed;
-			}
-			_		=> {
-			}
-		}
-		
-		let decomposedCmd = DecomposedCmd {
+		let mut decomposedCmd = DecomposedCmd {
 			cmd_line: ~"",
 			program: ~"",
 			args: ~[],
 			background: false,
 			inputFile: None,
 			outputFile: None,
-			pipeToNext: false,
+			pipeToNext: None,
+			error: false,
 		};
 
+		let background = cmd_line.find_str("&");
+		match background {
+			Some(index)	=> {
+				let cmd1 = cmd_line.slice(0, index).trim();
+				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim()} else {""};
+				decomposed = Shell::decompose_Cmdline(cmd1);
+				decomposed[0].background = true;
+				if(cmd2!="") { 
+					decomposed = vec::append(decomposed, Shell::decompose_Cmdline(cmd2));
+				}
+				return decomposed;
+			}
+			_		=> {
+			}
+		}
+
+		let pipe = cmd_line.find_str("|");
+		match pipe {
+			Some(index)	=> {
+				if(index==0 || index == cmd_line.len()-1) {
+					println("Syntax error near '|'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+				let cmd1 = cmd_line.slice(0, index).trim();
+				let cmd2 = cmd_line.slice_from(index+1).trim();
+				decomposed = Shell::decompose_Cmdline(cmd1);
+				decomposed[decomposed.len() - 1].pipeToNext = Some(~Shell::decompose_Cmdline(cmd2)[0]);
+				return decomposed;
+			}
+			_		=> {
+			}
+		}
 
 		let writeRedirect = cmd_line.find_str(">");
 		let readRedirect = cmd_line.find_str("<");
 		match (readRedirect, writeRedirect) {
-			(Some(read), Some(write))	=> {}
-			(Some(read), _)			=> {}
-			(_, Some(write))		=> {}
-			(_, _)				=> {}
+			(Some(read), Some(write))	=> {
+				if(read>write) {
+					let cmd = cmd_line.slice(0, write).trim().to_owned();
+					let output = cmd_line.slice(write+1, read).trim().to_owned();
+					let input = cmd_line.slice_from(read+1).to_owned();
+					decomposedCmd.outputFile = Some(output);
+					decomposedCmd.inputFile = Some(input);
+					decomposedCmd.cmd_line = cmd.clone();
+					decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+					let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+					args.remove(0);
+				}
+				else {
+					let cmd = cmd_line.slice(0, read).trim().to_owned();
+					let input = cmd_line.slice(read+1, write).trim().to_owned();
+					let output = cmd_line.slice_from(write+1).trim().to_owned();
+					decomposedCmd.inputFile = Some(input);
+					decomposedCmd.outputFile = Some(output);
+					decomposedCmd.cmd_line = cmd.clone();
+					decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+					let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+					args.remove(0);
+					decomposedCmd.args = args;
+				}
+			}
+			(Some(read), _)			=> {
+				let cmd = cmd_line.slice(0, read).trim().to_owned();
+				let input = cmd_line.slice_from(read+1).trim().to_owned();
+				decomposedCmd.inputFile = Some(input);
+				decomposedCmd.cmd_line = cmd.clone();
+				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+				let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+				args.remove(0);
+				decomposedCmd.args = args;
+			}
+			(_, Some(write))		=> {
+				let cmd = cmd_line.slice(0, write).trim().to_owned();
+				let output = cmd_line.slice_from(write+1).trim().to_owned();
+				decomposedCmd.outputFile = Some(output);
+				decomposedCmd.cmd_line = cmd.clone();
+				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+				let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+				args.remove(0);
+				decomposedCmd.args = args;
+			}
+			(_, _)				=> {
+				decomposedCmd.cmd_line = cmd_line.to_owned();
+				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+				let mut args : ~[~str] = cmd_line.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
+				args.remove(0);
+				decomposedCmd.args = args;
+			}
 		}
-
-		decomposed
+		
+		decomposed.push(decomposedCmd);
+		return decomposed;
 	}
     
     fn run_cmdline(&mut self, cmd_line: &str) {
@@ -276,7 +350,8 @@ struct DecomposedCmd {
 	background: bool,
 	inputFile: Option<~str>,
 	outputFile: Option<~str>,
-	pipeToNext: bool,
+	pipeToNext: Option<~DecomposedCmd>,
+	error: bool,
 }
 
 impl clone::Clone for DecomposedCmd {
@@ -288,7 +363,28 @@ impl clone::Clone for DecomposedCmd {
 			background : self.background,
 			inputFile: self.inputFile.clone(),
 			outputFile: self.outputFile.clone(),
-			pipeToNext: self.pipeToNext,
+			pipeToNext: self.pipeToNext.clone(),
+			error: self.error,
+		}
+	}
+}
+
+impl DecomposedCmd {
+	fn print(&self) {
+		print!("cmd_line: {:s}\nprogram: {:s}\nargs:", self.cmd_line, self.program);
+		if self.args.len() > 0 {
+			for i in range(0, self.args.len()) {
+				print!("\n\t{:s}", self.args[i]);
+			}
+		}
+		println!("\nbackground: {:b}\ninputFile: {:s}\noutputFile: {:s}\nerror: {:b}", self.background, 
+			match self.clone().inputFile { Some(name) => {name} _ => {~""} }, match self.clone().outputFile { Some(name) => {name} _ => {~""} }, self.error);
+		match self.clone().pipeToNext {
+			Some(next) => {
+				println("Pipe to:");
+				next.print();
+			}
+			_ => {}
 		}
 	}
 }
