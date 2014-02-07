@@ -15,6 +15,7 @@ use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str, vec, clone};
 use std::io::buffered::BufferedReader;
+use std::io::mem::BufWriter;
 use std::io::stdin;
 use std::io::fs::File;
 use extra::getopts;
@@ -163,7 +164,7 @@ impl Shell {
 							}
 						}
 						~"history"	=>  { shellCopy.run_history(); }
-						_		=>  { output = Shell::runDecomposedUnit(*useCmd, input); }
+						_		=>  { output = shellCopy.runDecomposedUnit(*useCmd, input); }
                 			}
 				
 					shellCopy.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
@@ -183,7 +184,7 @@ impl Shell {
 						}
 					}
 					~"history"	=>  { self.run_history(); }
-					_		=>  { output = Shell::runDecomposedUnit(*useCmd.clone(), input); }
+					_		=>  { output = self.runDecomposedUnit(*useCmd.clone(), input); }
 				}
 				self.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
 			}
@@ -192,7 +193,7 @@ impl Shell {
 		}
 	}
 
-	fn runDecomposedUnit (cmd : DecomposedCmd, input : ~[u8]) -> ~[u8] {
+	fn runDecomposedUnit (&mut self, cmd : DecomposedCmd, input : ~[u8]) -> ~[u8] {
 		match (cmd.inputFile.clone(), cmd.outputFile.clone()) {
 			(Some(input), Some(output))	=> {
 				let path = &Path::new(input.clone());
@@ -264,12 +265,18 @@ impl Shell {
 				}
 			}
 			(_, _)				=> {
-				let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+				//let output = self.run_cmdline(cmd.cmd_line);
+
+				//match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output));} _ => {}}
+				//return output;
+				let mut processOptions = run::ProcessOptions::new();
+				match cmd.pipeToNext { None => {processOptions.out_fd = Some(1);} _ => {}}
+				let process = run::Process::new(cmd.program, cmd.args, processOptions);
 				match process {
 					Some(mut pros)	=> {
 						if(input != ~[]) { pros.input().write(input); }
 						let output = pros.finish_with_output();
-						match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output.output));} _ => {}}
+						//match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output.output));} _ => {}}
 						return output.output;
 					}
 					_		=> {}
@@ -418,21 +425,38 @@ impl Shell {
 		return decomposed;
 	}
     
-    fn run_cmdline(&mut self, cmd_line: &str) {
+    fn run_cmdline(&mut self, cmd_line: &str) -> ~[u8]{
         let mut argv: ~[~str] =
             cmd_line.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
     
         if argv.len() > 0 {
             let program: ~str = argv.remove(0);
-            self.run_cmd(program, argv);
+            return self.run_cmd(program, argv);
         }
+	return ~[];
     }
     
-    fn run_cmd(&mut self, program: &str, argv: &[~str]) {
+    fn run_cmd(&mut self, program: &str, argv: &[~str]) -> ~[u8] {
         if self.cmd_exists(program) {
-            run::process_status(program, argv);
+		let mut output : ~[u8] = ~[];
+		let stdinHandle = io::stdio::stdin();
+		//let oldStdout = ~io::stdio::stdout();
+		{
+			//let newStdout = ~BufWriter::new(output);
+			//io::stdio::set_stdout(newStdout);
+			let out = run::process_output(program, argv);
+			match out {
+				Some(procOut)	=> {
+					output = procOut.output;
+				}
+				None		=> {}
+			}
+		}
+		//io::stdio::set_stdout(oldStdout);
+		return output;
         } else {
-            println!("{:s}: command not found", program);
+		println!("{:s}: command not found", program);
+		return ~[];
         }
     }
 
@@ -530,7 +554,7 @@ fn main() {
     };
     
     match opt_cmd_line {
-        Some(cmd_line) => Shell::new("").run_cmdline(cmd_line),
+        Some(cmd_line) => {Shell::new("").run_cmdline(cmd_line);},
         None           => Shell::new("gash > ").run()
     }
 }
