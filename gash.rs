@@ -51,7 +51,8 @@ impl Shell {
 		}
 		if error {continue;}
 		for j in range(0, decomposed.len()) {
-			self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
+			let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
+			if check==~"exit" { return; }
 		}
 /*
             let writeRedirect = cmd_line.find_str(" > ");
@@ -139,7 +140,7 @@ impl Shell {
 		}
 	}
 	
-	fn runDecomposed (&mut self, cmd : Option<~DecomposedCmd>, input : ~[u8]) {
+	fn runDecomposed (&mut self, cmd : Option<~DecomposedCmd>, input : ~[u8]) -> ~str {
 		match cmd {
 			Some(useCmd) => {
 			if useCmd.background {
@@ -197,7 +198,7 @@ impl Shell {
 				let mut output : ~[u8] = ~[];
 				match  useCmd.program {
 					~""		=>  { }
-					~"exit"		=>  { return; }
+					~"exit"		=>  { return ~"exit"; }
 					~"cd"		=>  {
 						if(useCmd.args.len() == 1) {
 							os::change_dir(&Path::new(useCmd.args.clone()[0]));
@@ -236,6 +237,7 @@ impl Shell {
 			}
 			_	=> {}
 		}
+		~""
 	}
 
 	fn runDecomposedUnit (&mut self, cmd : DecomposedCmd, input : ~[u8]) -> ~[u8] {
