@@ -50,7 +50,7 @@ impl Shell {
             let cmd_line = line.trim().to_owned();
             if (cmd_line == ~"") {continue;}
             self.history.push(cmd_line.clone());
-            let decomposed = Shell::decompose_Cmdline(cmd_line);
+            let decomposed = self.decompose_Cmdline(cmd_line);
             let mut error : bool = false;
             for j in range(0, decomposed.len()) {
             	if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
@@ -263,7 +263,7 @@ impl Shell {
 		~[]
 	}
 
-	fn decompose_Cmdline (cmd_line: &str) -> ~[DecomposedCmd]{
+	fn decompose_Cmdline (&mut self, cmd_line: &str) -> ~[DecomposedCmd]{
 		let mut decomposed = ~[];
 		let mut decomposedCmd = DecomposedCmd {
 			cmd_line: ~"",
@@ -275,7 +275,7 @@ impl Shell {
 			pipeToNext: None,
 			error: false,
 		};
-
+		
 		let background = cmd_line.find_str("&");
 		match background {
 			Some(index)	=> {
@@ -287,10 +287,10 @@ impl Shell {
 				}
 				let cmd1 = cmd_line.slice(0, index).trim();
 				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim()} else {""};
-				decomposed = Shell::decompose_Cmdline(cmd1);
+				decomposed = self.decompose_Cmdline(cmd1);
 				decomposed[0].background = true;
 				if(cmd2!="") { 
-					decomposed = vec::append(decomposed, Shell::decompose_Cmdline(cmd2));
+					decomposed = vec::append(decomposed, self.decompose_Cmdline(cmd2));
 				}
 				return decomposed;
 			}
@@ -309,14 +309,23 @@ impl Shell {
 				}
 				let cmd1 = cmd_line.slice(0, index).trim();
 				let cmd2 = cmd_line.slice_from(index+1).trim();
-				decomposed = Shell::decompose_Cmdline(cmd1);
-				decomposed[decomposed.len() - 1].pipeToNext = Some(~Shell::decompose_Cmdline(cmd2)[0]);
+				decomposed = self.decompose_Cmdline(cmd1);
+				decomposed[decomposed.len() - 1].pipeToNext = Some(~self.decompose_Cmdline(cmd2)[0]);
 				return decomposed;
 			}
 			_		=> {
 			}
 		}
 
+		if !self.cmd_exists(cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned()) {
+			let first = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+			if first != ~"exit" && first != ~"cd" && first != ~"history" {
+				println!("{:s}: command not found", first);
+				decomposedCmd.error = true;
+				decomposed.push(decomposedCmd);
+				return decomposed;
+			}
+		}
 		let writeRedirect = cmd_line.find_str(">");
 		let readRedirect = cmd_line.find_str("<");
 		match (readRedirect, writeRedirect) {
@@ -445,7 +454,7 @@ impl Shell {
                         println!("{:s}", self.history[c]);
                     }
             } else if(from_str::<int>(histArgs[1]).unwrap() < 0) {
-                println("You can't run a command with a negative number!");
+                println("You can't run the command with a negative number!");
             } else {
                 println("You haven't entered that many commands yet - try a smaller number");
             }
