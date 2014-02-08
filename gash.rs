@@ -163,8 +163,31 @@ impl Shell {
 								println("Usage: cd <directory>");
 							}
 						}
-						~"history"	=>  { shellCopy.run_history(); }
+						~"history"	=>  {
+							match useCmd.outputFile.clone() {
+								Some(fileName)	=> {
+									let mut newStdOut = File::create(&Path::new(fileName));
+									for z in range (0, shellCopy.history.len()) {
+										newStdOut.write_str(shellCopy.history[z]);
+										newStdOut.write_char('\n');
+									}
+								}
+								_		=> {
+									match useCmd.pipeToNext.clone() {
+										Some(pipTo)	=> {
+											for z in range (0, shellCopy.history.len()) {
+												let temp = (shellCopy.history[z] + "\n");
+												let tempBytes = temp.as_bytes();
+												output = vec::append(output, tempBytes);
+											}
+										}
+										_		=> { shellCopy.run_history(); }
+									}
+								}
+							}
+						}
 						_		=>  { output = shellCopy.runDecomposedUnit(*useCmd, input); }
+						
                 			}
 				
 					shellCopy.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
@@ -183,7 +206,29 @@ impl Shell {
 							println("Usage: cd <directory>");
 						}
 					}
-					~"history"	=>  { self.run_history(); }
+					~"history"	=>  { 
+						match useCmd.outputFile.clone() {
+							Some(fileName)	=> {
+								let mut newStdOut = File::create(&Path::new(fileName));
+								for z in range (0, self.history.len()) {
+									newStdOut.write_str(self.history[z]);
+									newStdOut.write_char('\n');
+								}
+							}
+							_		=> {
+								match useCmd.pipeToNext.clone() {
+									Some(pipTo)	=> {
+										for z in range (0, self.history.len()) {
+											let temp = (self.history[z] + "\n");
+											let tempBytes = temp.as_bytes();
+											output = vec::append(output, tempBytes);
+										}
+									}
+									_		=> { self.run_history(); }
+								}
+							}
+						}
+					}
 					_		=>  { output = self.runDecomposedUnit(*useCmd.clone(), input); }
 				}
 				self.runDecomposed(useCmd.pipeToNext.clone(), match useCmd.pipeToNext {Some(x) => {output} _ => {~[]} });
