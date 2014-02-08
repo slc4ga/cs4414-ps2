@@ -15,7 +15,6 @@ use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str, vec, clone};
 use std::io::buffered::BufferedReader;
-use std::io::mem::BufWriter;
 use std::io::stdin;
 use std::io::fs::File;
 use extra::getopts;
@@ -173,7 +172,7 @@ impl Shell {
 		match (cmd.inputFile.clone(), cmd.outputFile.clone()) {
 			(Some(input), Some(output))	=> {
 				let path = &Path::new(input.clone());
-				let mut newStdOut = File::create(&Path::new(output));
+				let newStdOut = File::create(&Path::new(output));
 				if (path.exists()) {
 					let inputFile = File::open(path);
 					match inputFile {
@@ -410,7 +409,6 @@ impl Shell {
     fn run_cmd(&mut self, program: &str, argv: &[~str]) -> ~[u8] {
         if self.cmd_exists(program) {
 		let mut output : ~[u8] = ~[];
-		let stdinHandle = io::stdio::stdin();
 		{
 			let out = run::process_output(program, argv);
 			match out {
@@ -427,48 +425,12 @@ impl Shell {
         }
     }
 
-    fn run_cd(&mut self, program: &str) {
-        let mut argv: ~[~str] =
-            program.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
-    
-    	let mut programs : ~str = ~"";
-            if argv.len() > 1 {
-                programs = argv.remove(1);
-            }
-    	os::change_dir(&Path::new(programs.clone()));
-    }
-
     fn run_history(&mut self) {
         for c in range(0, self.history.len()) {
             println!("{:s}", self.history[c]);
         }
     }
 
-    fn run_background(&mut self, program: &str, cmd_line: &str) {
-		let (portSelf, chanSelf): (Port<~Shell>, Chan<~Shell>) = Chan::new();
-		let (portProg, chanProg): (Port<~str>, Chan<~str>) = Chan::new();
-		let (portLine, chanLine): (Port<~str>, Chan<~str>) = Chan::new();
-		
-		let mut sendShell = ~(Shell::new("gash > "));
-		sendShell.history = self.history.clone();
-		chanSelf.send(sendShell);
-		chanProg.send(program.to_owned());
-		chanLine.send(cmd_line.to_owned());
-
-		do spawn { 
-		let program : ~str = portProg.recv();
-		let cmd_line : ~str = portLine.recv();
-		let mut selfV : ~Shell = portSelf.recv();
-                match program {
-             	   ~""           =>  { }
-              	  ~"exit"       =>  { }
-		  ~"cd"	     =>  { selfV.run_cd(cmd_line); }
-                  ~"history"    =>  { selfV.run_history(); }
-                  _            =>  { selfV.run_cmdline(cmd_line); }
-                }
-            };
-    }
-    
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
         let ret = run::process_output("which", [cmd_path.to_owned()]);
         return ret.expect("exit code error.").status.success();
