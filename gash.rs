@@ -36,7 +36,15 @@ impl Shell {
         let mut stdin = BufferedReader::new(stdin());
         
         loop {
-            print(self.cmd_prompt);
+            let cwd = std::os::getcwd();
+            let cwd2 = format!("{}", cwd.display());
+            let mut cwdS : ~[&str] = cwd2.split('/').collect();
+            let last = cwdS.pop();
+            if(last.len() > 0) {
+                print!("{} : {}", last, self.cmd_prompt);
+            } else {
+                print!("Home : {}", self.cmd_prompt);
+            }
             io::stdio::flush();
             
             let line = stdin.read_line().unwrap();
@@ -425,7 +433,19 @@ impl Shell {
         }
     }
 
-    fn run_history(&mut self) {
+    fn run_history(&mut self, program: &str) {
+        let histArgs : ~[&str] = program.split(' ').collect();
+        if(histArgs.len() == 2) {
+            if(from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
+                let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
+                println!("command to run: {:s}", self.history[num]);
+                let cmd = self.history[num].to_owned();
+                self.history.push(cmd);
+                // run self.history[num] exactly as printed
+            } else {
+                println("You haven't entered that many commands yet - try a smaller number");
+            }
+        }
         for c in range(0, self.history.len()) {
             println!("{:s}", self.history[c]);
         }
@@ -467,20 +487,19 @@ fn main() {
     let mut listener = Listener::new();
     listener.register(Interrupt);
 
-    let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
+    /*let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
     chanSelf.send(listener);
 
     do spawn{
         loop {
             let listener = portSelf.recv();
             match listener.port.recv() {
-                Interrupt => { println!("Got Interrupt'ed");
-                                unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
+                Interrupt => { unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
                             }
                 _ => (),
             }
         }
-    };
+    };*/
     
     match opt_cmd_line {
         Some(cmd_line) => {Shell::new("").run_cmdline(cmd_line);},
