@@ -46,85 +46,14 @@ impl Shell {
             self.history.push(cmd_line.clone());
             let decomposed = Shell::decompose_Cmdline(cmd_line);
             let mut error : bool = false;
-		for j in range(0, decomposed.len()) {
-			if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
-		}
-		if error {continue;}
-		for j in range(0, decomposed.len()) {
-			let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
-			if check==~"exit" { return; }
-		}
-/*
-            let writeRedirect = cmd_line.find_str(" > ");
-            let readRedirect = cmd_line.find_str(" < ");
-            if(writeRedirect == None && readRedirect == None) {
-            	let program = cmd_line.splitn(' ', 1).nth(0).expect("no program");
-            	self.history.push(cmd_line.clone());
-            	match cmd_line.slice_from(cmd_line.len() - 2) {
-            		" &"    => { self.run_background(program, cmd_line.slice(0, cmd_line.len() - 2));
-            			continue; }
-                	_	=> { }
-            	}
-            	match program {
-			""           =>  { continue; }
-			"exit"       =>  { return; }
-			"cd"	     =>  { self.run_cd(cmd_line); }
-			"history"    =>  { self.run_history(); }
-			_            =>  { self.run_cmdline(cmd_line); }
-            	}
+            for j in range(0, decomposed.len()) {
+            	if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
             }
-            else if (readRedirect == None) {
-            	let cmd1 = cmd_line.slice(0, writeRedirect.unwrap());
-            	let cmd2 = cmd_line.slice_from(writeRedirect.unwrap()+3);
-            	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
-            	let args : ~[&str] = if (cmd1.splitn(' ', 1).nth(1) != None) {cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect()} else {~[]};
-            	let mut argsOwned : ~[~str] = ~[];
-            	for i in range (0, args.len()) {
-            		argsOwned.push(args[i].to_owned());
-            	}
-		let newStdOut = File::create(&Path::new(cmd2));
-            	match newStdOut {
-            		Some(mut x) => {
-            			let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
-            			let output = process.unwrap().finish_with_output();
-            			x.write(output.output);
-            		}
-            		None => { println("shouldnt be here");}
-            	}
+            if error {continue;}
+            	for j in range(0, decomposed.len()) {
+            		let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
+            		if check==~"exit" { return; }
             }
-            else if (writeRedirect == None) {
-            	let cmd1 = cmd_line.slice(0, readRedirect.unwrap());
-            	let cmd2 = cmd_line.slice_from(readRedirect.unwrap()+3);
-            	let program = cmd1.splitn(' ', 1).nth(0).expect("no program");
-            	let args : ~[&str] = if (cmd1.splitn(' ', 1).nth(1) != None) {cmd1.splitn(' ', 1).nth(1).unwrap().split(' ').collect()} else {~[]};
-            	let mut argsOwned : ~[~str] = ~[];
-            	for i in range (0, args.len()) {
-            		argsOwned.push(args[i].to_owned());
-            	}
-           	let path = &Path::new(cmd2);
-            	if (path.exists()) {
-		let input = File::open(path);
-            		match input {
-            			Some(mut x) => {
-            				let inputBytes = x.read_to_end();
-            				let process = run::Process::new(program, argsOwned, run::ProcessOptions::new());
-            				match(process) {
-            					Some(mut toWrite) => {
-            						toWrite.input().write(inputBytes);
-            						let output = toWrite.finish_with_output();
-            						print!("{:s}", str::from_utf8(output.output));
-            					}
-            					None => {}
-        				}
-            			}
-            			None => { println!("gash: {:s}: No such file or directory", cmd2);}
-            		}
-            	}
-                else {
-           		println!("gash: {:s}: No such file or directory", cmd2);
-           	}
-            }
-*/
         }
     }
 
@@ -312,10 +241,6 @@ impl Shell {
 				}
 			}
 			(_, _)				=> {
-				//let output = self.run_cmdline(cmd.cmd_line);
-
-				//match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output));} _ => {}}
-				//return output;
 				let mut processOptions = run::ProcessOptions::new();
 				match cmd.pipeToNext { None => {processOptions.out_fd = Some(1);} _ => {}}
 				let process = run::Process::new(cmd.program, cmd.args, processOptions);
@@ -323,7 +248,6 @@ impl Shell {
 					Some(mut pros)	=> {
 						if(input != ~[]) { pros.input().write(input); }
 						let output = pros.finish_with_output();
-						//match cmd.pipeToNext { None => {print!("{:s}", str::from_utf8(output.output));} _ => {}}
 						return output.output;
 					}
 					_		=> {}
@@ -487,10 +411,7 @@ impl Shell {
         if self.cmd_exists(program) {
 		let mut output : ~[u8] = ~[];
 		let stdinHandle = io::stdio::stdin();
-		//let oldStdout = ~io::stdio::stdout();
 		{
-			//let newStdout = ~BufWriter::new(output);
-			//io::stdio::set_stdout(newStdout);
 			let out = run::process_output(program, argv);
 			match out {
 				Some(procOut)	=> {
@@ -499,7 +420,6 @@ impl Shell {
 				None		=> {}
 			}
 		}
-		//io::stdio::set_stdout(oldStdout);
 		return output;
         } else {
 		println!("{:s}: command not found", program);
