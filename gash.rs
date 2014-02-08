@@ -11,7 +11,6 @@
 
 extern mod extra;
 
-use std::libc::funcs::posix88;
 use std::io::signal::{Listener, Interrupt};
 use std::{io, run, os, str};
 use std::io::buffered::BufferedReader;
@@ -154,18 +153,24 @@ impl Shell {
     fn run_history(&mut self, program: &str) {
         let histArgs : ~[&str] = program.split(' ').collect();
         if(histArgs.len() == 2) {
-            if(from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
-                let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
-                println!("command to run: {:s}", self.history[num]);
-                let cmd = self.history[num].to_owned();
-                self.history.push(cmd);
-                // run self.history[num] exactly as printed
+            if(from_str::<int>(histArgs[1]).unwrap() >= 0 && from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
+                    let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
+                    println!("command to run: {:s}", self.history[num]);
+                    let cmd = self.history[num].to_owned();
+                    self.history.push(cmd);
+                    // run self.history[num] exactly as printed
+                    for c in range(0, self.history.len()) {
+                        println!("{:s}", self.history[c]);
+                    }
+            } else if(from_str::<int>(histArgs[1]).unwrap() < 0) {
+                println("You can't run a command with a negative number!");
             } else {
                 println("You haven't entered that many commands yet - try a smaller number");
             }
-        }
-        for c in range(0, self.history.len()) {
-            println!("{:s}", self.history[c]);
+        } else {
+            for c in range(0, self.history.len()) {
+                println!("{:s}", self.history[c]);
+            }
         }
     }
 
