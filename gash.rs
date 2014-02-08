@@ -118,7 +118,7 @@ impl Shell {
 												output = vec::append(output, tempBytes);
 											}
 										}
-										_		=> { shellCopy.run_history(); }
+										_		=> { shellCopy.run_history(useCmd.cmd_line); }
 									}
 								}
 							}
@@ -161,7 +161,7 @@ impl Shell {
 											output = vec::append(output, tempBytes);
 										}
 									}
-									_		=> { self.run_history(); }
+									_		=> { self.run_history(useCmd.cmd_line); }
 								}
 							}
 						}
