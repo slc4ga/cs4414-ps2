@@ -50,46 +50,7 @@ impl Shell {
             let mut cmd_line = line.trim().to_owned();
             if (cmd_line == ~"") {continue;}
             self.history.push(cmd_line.clone());
-            let mut errorInHistory = false;
-            let mut cmdChanged = false;
-            while (cmd_line.contains("history ")) {
-            	let histIndex = cmd_line.find_str("history ").unwrap();
-            	if histIndex==0 || cmd_line.char_at(histIndex-1)=='|' || cmd_line.char_at(histIndex-1)=='<' 
-			|| cmd_line.char_at(histIndex-1)=='>' || cmd_line.char_at(histIndex-1)=='&' {
-            		let split : ~[&str] = cmd_line.split(' ').collect();
-            		cmdChanged = true;
-            		for i in range (0, split.len()-1) {
-            			if(split[i] == "history") {
-            				let num = from_str::<uint>(split[i+1]);
-            				match num {
-            					Some(index)	=> {
-            						if (index > self.history.len()) {
-            							println("You haven't entered that many commands yet - try a smaller number");
-            							errorInHistory = true;
-            						} else {
-            							let cmdlineClone = cmd_line.clone().to_owned();
-            							let beforeHistory = cmdlineClone.slice_to(histIndex);
-            							let afterHistory = cmdlineClone.slice_from(histIndex+8+split[i+1].len());
-            							cmd_line = beforeHistory + self.history[self.history.len() - index - 1]
-									 + afterHistory;
-            							cmdChanged = true;
-            						}
-            					}
-            					_		=> {
-            						println!("gash: history: {:s}: positive numeric argument required", split[i+1]);
-            						errorInHistory = true;
-            					}
-            				}
-            				break;
-            			}
-            		}
-			println(cmd_line);
-            		if errorInHistory || !cmdChanged {break;}
-            	}
-            	else { break; }
-            }
-            if errorInHistory {continue;}
-            let decomposed = self.decompose_Cmdline(cmd_line);
+            let decomposed = self.decompose_Cmdline(cmd_line.clone());
             let mut error : bool = false;
             for j in range(0, decomposed.len()) {
             	if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
@@ -305,7 +266,7 @@ impl Shell {
 		~[]
 	}
 
-	fn decompose_Cmdline (&mut self, cmd_line: &str) -> ~[DecomposedCmd]{
+	fn decompose_Cmdline (&mut self, mut cmd_line: ~str) -> ~[DecomposedCmd]{
 		let mut decomposed = ~[];
 		let mut decomposedCmd = DecomposedCmd {
 			cmd_line: ~"",
@@ -327,11 +288,11 @@ impl Shell {
 					decomposed.push(decomposedCmd);
 					return decomposed;
 				}
-				let cmd1 = cmd_line.slice(0, index).trim();
-				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim()} else {""};
+				let cmd1 = cmd_line.slice(0, index).trim().to_owned();
+				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim().to_owned()} else {~""};
 				decomposed = self.decompose_Cmdline(cmd1);
 				decomposed[0].background = true;
-				if(cmd2!="") { 
+				if(cmd2!=~"") { 
 					decomposed = vec::append(decomposed, self.decompose_Cmdline(cmd2));
 				}
 				return decomposed;
@@ -349,8 +310,8 @@ impl Shell {
 					decomposed.push(decomposedCmd);
 					return decomposed;
 				}
-				let cmd1 = cmd_line.slice(0, index).trim();
-				let cmd2 = cmd_line.slice_from(index+1).trim();
+				let cmd1 = cmd_line.slice(0, index).trim().to_owned();
+				let cmd2 = cmd_line.slice_from(index+1).trim().to_owned();
 				decomposed = self.decompose_Cmdline(cmd1);
 				decomposed[decomposed.len() - 1].pipeToNext = Some(~self.decompose_Cmdline(cmd2)[0]);
 				return decomposed;
@@ -368,6 +329,7 @@ impl Shell {
 				return decomposed;
 			}
 		}
+
 		let writeRedirect = cmd_line.find_str(">");
 		let readRedirect = cmd_line.find_str("<");
 		match (readRedirect, writeRedirect) {
@@ -385,24 +347,38 @@ impl Shell {
 					return decomposed;
 				}
 				if(read>write) {
-					let cmd = cmd_line.slice(0, write).trim().to_owned();
+					let mut cmd = cmd_line.slice(0, write).trim().to_owned();
+					cmd = Shell::handleHistory(cmd.clone(), self.history.clone());
+					if cmd == ~"error!" {
+						decomposedCmd.error = true;
+						decomposed.push(decomposedCmd);
+						return decomposed;
+					}
+
 					let output = cmd_line.slice(write+1, read).trim().to_owned();
 					let input = cmd_line.slice_from(read+1).to_owned();
 					decomposedCmd.outputFile = Some(output);
 					decomposedCmd.inputFile = Some(input);
 					decomposedCmd.cmd_line = cmd.clone();
-					decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+					decomposedCmd.program = cmd.splitn(' ', 1).nth(0).expect("no program").to_owned();
 					let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
 					args.remove(0);
 				}
 				else {
-					let cmd = cmd_line.slice(0, read).trim().to_owned();
+					let mut cmd = cmd_line.slice(0, read).trim().to_owned();
+					cmd = Shell::handleHistory(cmd.clone(), self.history.clone());
+					if cmd == ~"error!" {
+						decomposedCmd.error = true;
+						decomposed.push(decomposedCmd);
+						return decomposed;
+					}
+
 					let input = cmd_line.slice(read+1, write).trim().to_owned();
 					let output = cmd_line.slice_from(write+1).trim().to_owned();
 					decomposedCmd.inputFile = Some(input);
 					decomposedCmd.outputFile = Some(output);
 					decomposedCmd.cmd_line = cmd.clone();
-					decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+					decomposedCmd.program = cmd.splitn(' ', 1).nth(0).expect("no program").to_owned();
 					let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
 					args.remove(0);
 					decomposedCmd.args = args;
@@ -415,11 +391,18 @@ impl Shell {
 					decomposed.push(decomposedCmd);
 					return decomposed;
 				}
-				let cmd = cmd_line.slice(0, read).trim().to_owned();
+				let mut cmd = cmd_line.slice(0, read).trim().to_owned();
+				cmd = Shell::handleHistory(cmd.clone(), self.history.clone());
+				if cmd == ~"error!" {
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+
 				let input = cmd_line.slice_from(read+1).trim().to_owned();
 				decomposedCmd.inputFile = Some(input);
 				decomposedCmd.cmd_line = cmd.clone();
-				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+				decomposedCmd.program = cmd.splitn(' ', 1).nth(0).expect("no program").to_owned();
 				let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
 				args.remove(0);
 				decomposedCmd.args = args;
@@ -431,16 +414,30 @@ impl Shell {
 					decomposed.push(decomposedCmd);
 					return decomposed;
 				}
-				let cmd = cmd_line.slice(0, write).trim().to_owned();
+				let mut cmd = cmd_line.slice(0, write).trim().to_owned();
+				cmd = Shell::handleHistory(cmd.clone(), self.history.clone());
+				if cmd == ~"error!" {
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+
 				let output = cmd_line.slice_from(write+1).trim().to_owned();
 				decomposedCmd.outputFile = Some(output);
 				decomposedCmd.cmd_line = cmd.clone();
-				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+				decomposedCmd.program = cmd.splitn(' ', 1).nth(0).expect("no program").to_owned();
 				let mut args : ~[~str] = cmd.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
 				args.remove(0);
 				decomposedCmd.args = args;
 			}
 			(_, _)				=> {
+				cmd_line = Shell::handleHistory(cmd_line.clone(), self.history.clone());
+				if cmd_line == ~"error!" {
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+
 				decomposedCmd.cmd_line = cmd_line.to_owned();
 				decomposedCmd.program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
 				let mut args : ~[~str] = cmd_line.split(' ').filter_map(|x| if x != "" { Some(x.to_owned()) } else { None }).to_owned_vec();
@@ -451,6 +448,39 @@ impl Shell {
 		
 		decomposed.push(decomposedCmd);
 		return decomposed;
+	}
+
+	fn handleHistory(mut cmd_line : ~str, history : ~[~str]) -> ~str {
+		let mut errorInHistory = false;
+		let program = cmd_line.splitn(' ', 1).nth(0).expect("no program").to_owned();
+
+		if (program == ~"history") {
+			let split : ~[&str] = cmd_line.split(' ').collect();
+			if split.len()>2 {
+				println("gash: history: too many arguments");
+				errorInHistory = true;
+			}
+			else if split.len()==2 {
+				let num = from_str::<uint>(split[1]);
+				match num {
+					Some(index)	=> {
+						if (index > history.len()) {
+							println("You haven't entered that many commands yet - try a smaller number");
+							errorInHistory = true;
+						} else {
+							cmd_line = history[history.len() - index - 1];
+						}
+					}
+					_		=> {
+						println!("gash: history: {:s}: positive numeric argument required", split[1]);
+						errorInHistory = true;
+					}
+				}
+			}
+		}
+		if errorInHistory {cmd_line = ~"error!"}
+ 
+		return cmd_line;
 	}
     
     fn run_cmdline(&mut self, cmd_line: &str) -> ~[u8]{
