@@ -9,6 +9,8 @@
 // Version 0.4
 //
 
+#[allow(dead_code)];
+#[allow(unused_variable)];
 extern mod extra;
 
 use std::io::signal::{Listener, Interrupt};
@@ -47,7 +49,7 @@ impl Shell {
             io::stdio::flush();
             
             let line = stdin.read_line().unwrap();
-            let mut cmd_line = line.trim().to_owned();
+            let cmd_line = line.trim().to_owned();
             if (cmd_line == ~"") {continue;}
             self.history.push(cmd_line.clone());
             let decomposed = self.decompose_Cmdline(cmd_line.clone());
