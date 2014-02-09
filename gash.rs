@@ -9,6 +9,8 @@
 // Version 0.4
 //
 
+#[allow(dead_code)];
+#[allow(unused_variable)];
 extern mod extra;
 
 use std::io::signal::{Listener, Interrupt};
