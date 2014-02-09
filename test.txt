@@ -1,0 +1,7 @@
+LICENSE
+Makefile
+README.md
+gash
+gash.rs
+test.cpp
+test.txt
