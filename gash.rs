@@ -279,6 +279,28 @@ impl Shell {
 			error: false,
 		};
 		
+		let separate = cmd_line.find_str(";");
+		match separate {
+			Some(index)	=> {
+				if(index==0) {
+					println("Syntax error near ';'");
+					decomposedCmd.error = true;
+					decomposed.push(decomposedCmd);
+					return decomposed;
+				}
+				let cmd1 = cmd_line.slice(0, index).trim().to_owned();
+				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim().to_owned()} else {~""};
+				decomposed = self.decompose_Cmdline(cmd1);
+				decomposed[0].background = true;
+				if(cmd2!=~"") { 
+					decomposed = vec::append(decomposed, self.decompose_Cmdline(cmd2));
+				}
+				return decomposed;
+			}
+			_		=> {
+			}
+		}
+
 		let background = cmd_line.find_str("&");
 		match background {
 			Some(index)	=> {
