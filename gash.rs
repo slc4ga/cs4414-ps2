@@ -47,9 +47,48 @@ impl Shell {
             io::stdio::flush();
             
             let line = stdin.read_line().unwrap();
-            let cmd_line = line.trim().to_owned();
+            let mut cmd_line = line.trim().to_owned();
             if (cmd_line == ~"") {continue;}
             self.history.push(cmd_line.clone());
+            let mut errorInHistory = false;
+            let mut cmdChanged = false;
+            while (cmd_line.contains("history ")) {
+            	let histIndex = cmd_line.find_str("history ").unwrap();
+            	if histIndex==0 || cmd_line.char_at(histIndex-1)=='|' || cmd_line.char_at(histIndex-1)=='<' 
+			|| cmd_line.char_at(histIndex-1)=='>' || cmd_line.char_at(histIndex-1)=='&' {
+            		let split : ~[&str] = cmd_line.split(' ').collect();
+            		cmdChanged = true;
+            		for i in range (0, split.len()-1) {
+            			if(split[i] == "history") {
+            				let num = from_str::<uint>(split[i+1]);
+            				match num {
+            					Some(index)	=> {
+            						if (index > self.history.len()) {
+            							println("You haven't entered that many commands yet - try a smaller number");
+            							errorInHistory = true;
+            						} else {
+            							let cmdlineClone = cmd_line.clone().to_owned();
+            							let beforeHistory = cmdlineClone.slice_to(histIndex);
+            							let afterHistory = cmdlineClone.slice_from(histIndex+8+split[i+1].len());
+            							cmd_line = beforeHistory + self.history[self.history.len() - index - 1]
+									 + afterHistory;
+            							cmdChanged = true;
+            						}
+            					}
+            					_		=> {
+            						println!("gash: history: {:s}: positive numeric argument required", split[i+1]);
+            						errorInHistory = true;
+            					}
+            				}
+            				break;
+            			}
+            		}
+			println(cmd_line);
+            		if errorInHistory || !cmdChanged {break;}
+            	}
+            	else { break; }
+            }
+            if errorInHistory {continue;}
             let decomposed = self.decompose_Cmdline(cmd_line);
             let mut error : bool = false;
             for j in range(0, decomposed.len()) {
@@ -232,7 +271,9 @@ impl Shell {
 				let newStdOut = File::create(&Path::new(output));
 				match newStdOut {
 					Some(mut x) => {
-						let process = run::Process::new(cmd.program, cmd.args, run::ProcessOptions::new());
+						let mut options = run::ProcessOptions::new();
+						if(input == ~[]) { options.in_fd = Some(0); }
+						let process = run::Process::new(cmd.program, cmd.args, options);
 						match process {
 							Some(mut pros)	=> {
 								if(input != ~[]) { pros.input().write(input); }
@@ -248,7 +289,8 @@ impl Shell {
 			}
 			(_, _)				=> {
 				let mut processOptions = run::ProcessOptions::new();
-				match cmd.pipeToNext { None => {processOptions.out_fd = Some(1);} _ => {}}
+				match cmd.pipeToNext { None => { processOptions.out_fd = Some(1); } _ => {}}
+				if(input == ~[]) { processOptions.in_fd = Some(0); }
 				let process = run::Process::new(cmd.program, cmd.args, processOptions);
 				match process {
 					Some(mut pros)	=> {
@@ -441,18 +483,16 @@ impl Shell {
         }
     }
 
-    fn run_history(&mut self, program: &str) {
+    fn run_history(&mut self, program: &str) -> Option<~[DecomposedCmd]> {
         let histArgs : ~[&str] = program.split(' ').collect();
         if(histArgs.len() == 2) {
             if(from_str::<int>(histArgs[1]).unwrap() >= 0 && from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
                     let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
-                    println!("command to run: {:s}", self.history[num]);
+                    println!("running: {:s}", self.history[num]);
                     let cmd = self.history[num].to_owned();
-                    self.history.push(cmd);
-                    // run self.history[num] exactly as printed
-                    for c in range(0, self.history.len()) {
-                        println!("{:s}", self.history[c]);
-                    }
+                    self.history.push(cmd.clone());
+                    let decomposed = self.decompose_Cmdline(cmd);
+                    return Some(decomposed);
             } else if(from_str::<int>(histArgs[1]).unwrap() < 0) {
                 println("You can't run the command with a negative number!");
             } else {
@@ -463,6 +503,7 @@ impl Shell {
                 println!("{:s}", self.history[c]);
             }
         }
+	None
     }
 
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
