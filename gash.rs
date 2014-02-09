@@ -380,7 +380,7 @@ impl Shell {
 					}
 
 					let output = cmd_line.slice(write+1, read).trim().to_owned();
-					let input = cmd_line.slice_from(read+1).to_owned();
+					let input = cmd_line.slice_from(read+1).trim().to_owned();
 					decomposedCmd.outputFile = Some(output);
 					decomposedCmd.inputFile = Some(input);
 					decomposedCmd.cmd_line = cmd.clone();
