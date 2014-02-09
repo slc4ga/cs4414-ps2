@@ -12,7 +12,7 @@
 extern mod extra;
 
 use std::io::signal::{Listener, Interrupt};
-use std::{io, run, os, str, vec, clone};
+use std::{io, run, os, str, vec, clone, libc};
 use std::io::buffered::BufferedReader;
 use std::io::stdin;
 use std::io::fs::File;
@@ -58,7 +58,7 @@ impl Shell {
             if error {continue;}
             	for j in range(0, decomposed.len()) {
             		let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
-            		if check==~"exit" { return; }
+            		if check==~"exit" { /*return;*/unsafe { libc::exit(0 as libc::c_int); } }
             }
         }
     }
