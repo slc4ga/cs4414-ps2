@@ -55,13 +55,12 @@ impl Shell {
             let decomposed = self.decompose_Cmdline(cmd_line.clone());
             let mut error : bool = false;
             for j in range(0, decomposed.len()) {
-		//decomposed.clone()[j].print();
             	if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
             }
             if error {continue;}
             for j in range(0, decomposed.len()) {
             	let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
-            	if check==~"exit" { /*return;*/unsafe { libc::exit(0 as libc::c_int); } }
+            	if check==~"exit" { unsafe { libc::exit(0 as libc::c_int); } }
             }
         }
     }
@@ -579,20 +578,6 @@ fn main() {
     let mut listener = Listener::new();
     listener.register(Interrupt);
 
-    /*let (portSelf, chanSelf): (Port<Listener>, Chan<Listener>) = Chan::new();    
-    chanSelf.send(listener);
-
-    do spawn{
-        loop {
-            let listener = portSelf.recv();
-            match listener.port.recv() {
-                Interrupt => { unsafe { posix88::signal::kill(std::libc::getpid() , std::libc::SIGINT); }
-                            }
-                _ => (),
-            }
-        }
-    };*/
-    
     match opt_cmd_line {
         Some(cmd_line) => {Shell::new("").run_cmdline(cmd_line);},
         None           => Shell::new("gash > ").run()
