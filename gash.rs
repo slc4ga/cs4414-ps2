@@ -120,7 +120,7 @@ impl Shell {
 												output = vec::append(output, tempBytes);
 											}
 										}
-										_		=> { shellCopy.run_history(useCmd.cmd_line); }
+										_		=> { shellCopy.run_history(); }
 									}
 								}
 							}
@@ -163,7 +163,7 @@ impl Shell {
 											output = vec::append(output, tempBytes);
 										}
 									}
-									_		=> { self.run_history(useCmd.cmd_line); }
+									_		=> { self.run_history(); }
 								}
 							}
 						}
@@ -537,27 +537,10 @@ impl Shell {
         }
     }
 
-    fn run_history(&mut self, program: &str) -> Option<~[DecomposedCmd]> {
-        let histArgs : ~[&str] = program.split(' ').collect();
-        if(histArgs.len() == 2) {
-            if(from_str::<int>(histArgs[1]).unwrap() >= 0 && from_str::<uint>(histArgs[1]).unwrap() < self.history.len()) {
-                    let num = self.history.len() - from_str::<uint>(histArgs[1]).unwrap() - 1;
-                    println!("running: {:s}", self.history[num]);
-                    let cmd = self.history[num].to_owned();
-                    self.history.push(cmd.clone());
-                    let decomposed = self.decompose_Cmdline(cmd);
-                    return Some(decomposed);
-            } else if(from_str::<int>(histArgs[1]).unwrap() < 0) {
-                println("You can't run the command with a negative number!");
-            } else {
-                println("You haven't entered that many commands yet - try a smaller number");
-            }
-        } else {
-            for c in range(0, self.history.len()) {
-                println!("{:s}", self.history[c]);
-            }
+    fn run_history(&mut self) {
+        for c in range(0, self.history.len()) {
+            println!("{:s}", self.history[c]);
         }
-	None
     }
 
     fn cmd_exists(&mut self, cmd_path: &str) -> bool {
