@@ -55,12 +55,13 @@ impl Shell {
             let decomposed = self.decompose_Cmdline(cmd_line.clone());
             let mut error : bool = false;
             for j in range(0, decomposed.len()) {
+		//decomposed.clone()[j].print();
             	if(Shell::checkForError(Some(~decomposed.clone()[j]))) {error = true;}
             }
             if error {continue;}
-            	for j in range(0, decomposed.len()) {
-            		let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
-            		if check==~"exit" { /*return;*/unsafe { libc::exit(0 as libc::c_int); } }
+            for j in range(0, decomposed.len()) {
+            	let check = self.runDecomposed(Some(~decomposed.clone()[j]), ~[]);
+            	if check==~"exit" { /*return;*/unsafe { libc::exit(0 as libc::c_int); } }
             }
         }
     }
@@ -293,7 +294,6 @@ impl Shell {
 				let cmd1 = cmd_line.slice(0, index).trim().to_owned();
 				let cmd2 = if(index < cmd_line.len()) {cmd_line.slice_from(index+1).trim().to_owned()} else {~""};
 				decomposed = self.decompose_Cmdline(cmd1);
-				decomposed[0].background = true;
 				if(cmd2!=~"") { 
 					decomposed = vec::append(decomposed, self.decompose_Cmdline(cmd2));
 				}
